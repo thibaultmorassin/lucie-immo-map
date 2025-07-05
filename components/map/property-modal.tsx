@@ -1,8 +1,6 @@
-"use client";
-
-import { Property } from "./map";
-import { X, MapPin, Bed, Bath, Square, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { Property } from "@/types";
+import { Bath, Bed, Calendar, MapPin, Square, X } from "lucide-react";
 
 interface PropertyModalProps {
   property: Property | null;
@@ -66,6 +64,7 @@ export function PropertyModal({
                   key={index}
                   className="aspect-video bg-gray-100 rounded-lg overflow-hidden"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image}
                     alt={`${property.title} - Image ${index + 1}`}

@@ -2,14 +2,11 @@
 
 import { Property } from "@/types";
 import { Loader2, MapPin } from "lucide-react";
-import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { FloatingAddButton } from "./floating-add-button";
 import { AddPropertyModal, PropertyFormData } from "./map/add-property-modal";
+import MapLibreMap from "./map/maplibre-map";
 import { PropertyModal } from "./map/property-modal";
-const Map = dynamic(() => import("./map/map"), {
-  ssr: false,
-});
 
 interface UserLocation {
   latitude: number;
@@ -75,10 +72,6 @@ export function RealEstateApp() {
   const handlePropertyClick = (property: Property) => {
     setSelectedProperty(property);
     setIsPropertyModalOpen(true);
-  };
-
-  const handleMapClick = (lat: number, lng: number) => {
-    setMapClickLocation({ lat, lng });
   };
 
   const handleAddProperty = async (propertyData: PropertyFormData) => {
@@ -161,13 +154,12 @@ export function RealEstateApp() {
         </div>
       )}
 
-      {/* Map */}
-      <Map
+      {/* Map - Zoom 17 shows ~100m radius around user */}
+      <MapLibreMap
         center={[userLocation.latitude, userLocation.longitude]}
-        zoom={13}
+        zoom={17}
         properties={properties}
         onPropertyClick={handlePropertyClick}
-        onMapClick={handleMapClick}
       />
 
       {/* Add Property Button */}
