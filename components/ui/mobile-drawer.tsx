@@ -27,7 +27,7 @@ const MobileDrawerOverlay = ({
   ...props
 }: React.ComponentPropsWithRef<typeof MobileDrawerPrimitive.Overlay>) => (
   <MobileDrawerPrimitive.Overlay
-    className={cn("fixed inset-0 z-50 bg-black/80 backdrop-blur-sm", className)}
+    className={cn("fixed inset-0 z-50 bg-black/80 backdrop-blur-xs", className)}
     {...props}
   />
 );

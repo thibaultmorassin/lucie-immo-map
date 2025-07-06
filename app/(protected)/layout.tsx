@@ -14,7 +14,7 @@ export default function ProtectedLayout({
       className="min-h-screen flex flex-col"
       style={{ "--header-height": "64px" } as React.CSSProperties}
     >
-      <nav className="w-full flex justify-center border-b border-b-foreground/10 h-[var(--header-height)] bg-white/95 backdrop-blur-sm z-50 shadow-sm">
+      <nav className="w-full flex justify-center border-b border-b-foreground/10 h-(--header-height) bg-background/95 backdrop-blur-xs z-50 shadow-xs">
         <div className="w-full max-w-7xl flex justify-between items-center p-3 px-5 text-sm">
           <div className="flex gap-5 items-center font-semibold">
             <Link

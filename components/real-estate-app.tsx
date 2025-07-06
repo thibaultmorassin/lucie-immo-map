@@ -112,17 +112,6 @@ export function RealEstateApp() {
 
   return (
     <div className="relative w-full h-[calc(100vh-var(--header-height))]">
-      {true && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
-            <span className="text-sm text-gray-700">
-              Chargement des biens...
-            </span>
-          </div>
-        </div>
-      )}
-
       <MapLibreMap
         center={[userLocation.latitude, userLocation.longitude]}
         zoom={17}
@@ -132,7 +121,7 @@ export function RealEstateApp() {
       />
 
       {properties.length > 0 && (
-        <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg max-w-sm">
+        <div className="absolute top-4 left-4 z-10 bg-background/90 backdrop-blur-xs rounded-lg p-4 shadow-lg max-w-sm">
           <h3 className="font-semibold text-gray-800 mb-2">
             {properties.length} bien{properties.length > 1 ? "s" : ""} trouvé
             {properties.length > 1 ? "s" : ""}

@@ -16,10 +16,7 @@ const propertyMarkerSVG = `
 
 // User location marker icon SVG
 const userLocationMarkerSVG = `
-<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="10" cy="10" r="8" fill="#3B82F6" stroke="white" stroke-width="2"/>
-  <circle cx="10" cy="10" r="4" fill="white"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin-icon lucide-map-pin"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
 `;
 
 interface CadastreProperties {
@@ -288,16 +285,6 @@ export default function MapLibreMap({
       .setLngLat([center[1], center[0]]) // Note: MapLibre uses [lng, lat] format
       .addTo(map.current);
 
-    // Add popup for user location
-    const userPopup = new maplibregl.Popup({ offset: 10, closeButton: false })
-      .setHTML(`
-        <div style="padding: 6px; text-align: center;">
-          <p style="margin: 0; font-size: 12px; color: #3B82F6; font-weight: 500;">📍 Votre position</p>
-        </div>
-      `);
-
-    userLocationMarker.current.setPopup(userPopup);
-
     // Cleanup on unmount
     return () => {
       if (userLocationMarker.current) {
@@ -338,7 +325,7 @@ export default function MapLibreMap({
       {/* Cadastre Popover */}
       {cadastrePopover && (
         <div
-          className="fixed z-50 bg-white rounded-lg shadow-lg border p-4 max-w-sm"
+          className="fixed z-50 bg-background rounded-lg shadow-lg border p-4 max-w-sm"
           style={{
             left: `${popoverPosition.x}px`,
             top: `${popoverPosition.y}px`,
@@ -358,11 +345,11 @@ export default function MapLibreMap({
               <h4 className="font-semibold text-sm">Parcelle Cadastrale</h4>
             </div>
 
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2 text-sm text-muted-foreground">
               {cadastrePopover.properties.updated && (
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-3 w-3 text-gray-500" />
-                  <span className="text-gray-600">
+                <div className="flex items-center gap-2 ">
+                  <Calendar className="h-3 w-3 " />
+                  <span>
                     Mis à jour: {formatDate(cadastrePopover.properties.updated)}
                   </span>
                 </div>
@@ -371,8 +358,8 @@ export default function MapLibreMap({
               {!cadastrePopover.properties.updated &&
                 cadastrePopover.properties.created && (
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-3 w-3 text-gray-500" />
-                    <span className="text-gray-600">
+                    <Calendar className="h-3 w-3 " />
+                    <span>
                       Créé: {formatDate(cadastrePopover.properties.created)}
                     </span>
                   </div>
@@ -380,8 +367,8 @@ export default function MapLibreMap({
 
               {cadastrePopover.properties.contenance && (
                 <div className="flex items-center gap-2">
-                  <Home className="h-3 w-3 text-gray-500" />
-                  <span className="text-gray-600">
+                  <Home className="h-3 w-3 " />
+                  <span>
                     Surface: {Math.round(cadastrePopover.properties.contenance)}{" "}
                     m²
                   </span>
@@ -389,13 +376,13 @@ export default function MapLibreMap({
               )}
 
               {cadastrePopover.properties.commune && (
-                <p className="text-gray-600">
+                <p>
                   <strong>Commune:</strong> {cadastrePopover.properties.commune}
                 </p>
               )}
 
               {cadastrePopover.properties.section && (
-                <p className="text-gray-600">
+                <p>
                   <strong>Section:</strong> {cadastrePopover.properties.section}
                 </p>
               )}

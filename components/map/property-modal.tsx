@@ -45,7 +45,7 @@ export function PropertyModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-background rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
           <h2 className="text-2xl font-bold">{property.title}</h2>
@@ -87,7 +87,7 @@ export function PropertyModal({
 
           {/* Address */}
           <div className="flex items-start gap-2">
-            <MapPin className="h-5 w-5 text-gray-500 mt-0.5 flex-shrink-0" />
+            <MapPin className="h-5 w-5 text-gray-500 mt-0.5 shrink-0" />
             <div>
               <p className="text-gray-900">{property.address}</p>
               <p className="text-sm text-gray-500">

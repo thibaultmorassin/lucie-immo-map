@@ -17,12 +17,12 @@ const loaderVariants = cva("loading h-full w-5", {
 });
 
 const buttonVariants = cva(
-  "relative font-sans inline-flex gap-2 items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:border-transparent disabled:bg-disabled-200 disabled:text-disabled focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring",
+  "relative font-sans cursor-pointer inline-flex gap-2 items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:border-transparent disabled:bg-disabled-200 disabled:text-disabled focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-ring",
   {
     variants: {
       variant: {
         default:
-          "bg-slate-900 text-background shadow-[0_0_0_1px_var(--slate-900)] hover:bg-slate-800 hover:shadow-[0_0_0_1px_var(--slate-800)] disabled:shadow-border-disabled",
+          "bg-slate-900 text-background shadow-[0_0_0_1px_var(--slate-900)] hover:bg-slate-800 hover:shadow-[0_0_0_1px_var(--slate-800)] disabled:shadow-border-disabled dark:bg-slate-50 dark:hover:bg-slate-100 dark:hover:shadow-[0_0_0_1px_var(--slate-100)]",
         primary: "bg-primary text-white hover:bg-primary/90",
         outline:
           "border-none bg-slate-50 shadow-border hover:bg-slate-100 focus-visible:shadow-focus focus-visible:outline-0 disabled:bg-disabled-200/50 disabled:text-disabled-500 disabled:shadow-border-disabled data-open:shadow-focus",
@@ -69,7 +69,7 @@ const Button = ({
   const Comp = asChild ? Slot : "button";
 
   const iconArrowUpRightAnimationClassname =
-    "[&_svg.tabler-icon-arrow-up-right]:spring-bounce-60 [&_svg.tabler-icon-arrow-up-right]:spring-duration-300 hover:[&_svg.tabler-icon-arrow-up-right]:translate-x-[3px] hover:[&_svg.tabler-icon-arrow-up-right]:translate-y-[-3px]";
+    "[&_svg.tabler-icon-arrow-up-right]:spring-bounce-60 [&_svg.tabler-icon-arrow-up-right]:spring-duration-300 [&_svg.tabler-icon-arrow-up-right]:hover:translate-x-[3px] [&_svg.tabler-icon-arrow-up-right]:hover:translate-y-[-3px]";
 
   return (
     <Comp
