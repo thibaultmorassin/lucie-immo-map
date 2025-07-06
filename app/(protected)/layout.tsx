@@ -1,5 +1,5 @@
-import { EnvVarWarning } from "@/components/env-var-warning";
 import { AuthButton } from "@/components/auth-button";
+import { EnvVarWarning } from "@/components/env-var-warning";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
@@ -10,16 +10,18 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }) {
   return (
-    <main className="min-h-screen flex flex-col">
-      {/* Navigation Bar */}
-      <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16 bg-white/95 backdrop-blur-sm z-50 shadow-sm">
+    <main
+      className="min-h-screen flex flex-col"
+      style={{ "--header-height": "64px" } as React.CSSProperties}
+    >
+      <nav className="w-full flex justify-center border-b border-b-foreground/10 h-[var(--header-height)] bg-white/95 backdrop-blur-sm z-50 shadow-sm">
         <div className="w-full max-w-7xl flex justify-between items-center p-3 px-5 text-sm">
           <div className="flex gap-5 items-center font-semibold">
             <Link
               href={"/"}
               className="text-emerald-600 hover:text-emerald-700"
             >
-              🏠 Lucie Immo Map
+              🏠 Lucimmo | Map
             </Link>
           </div>
           <div className="flex items-center gap-4">

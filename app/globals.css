@@ -153,3 +153,7 @@
     max-height: 85vh;
   }
 }
+
+svg {
+  flex-shrink: 0;
+}
