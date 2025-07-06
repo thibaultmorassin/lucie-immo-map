@@ -1,10 +1,9 @@
 "use client";
 
 import { Property } from "@/types";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2, MapPin, PlusIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { FloatingAddButton } from "./floating-add-button";
-import { AddPropertyModal, PropertyFormData } from "./map/add-property-modal";
+import AddPropertyModalForm from "./map/add-property-modal-form";
 import MapLibreMap from "./map/maplibre-map";
 import { PropertyModal } from "./map/property-modal";
 
@@ -74,42 +73,6 @@ export function RealEstateApp() {
     setIsPropertyModalOpen(true);
   };
 
-  const handleAddProperty = async (propertyData: PropertyFormData) => {
-    try {
-      const response = await fetch("/api/properties", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(propertyData),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to add property");
-      }
-
-      const data = await response.json();
-
-      // Add the new property to the list
-      setProperties((prev) => [data.property, ...prev]);
-
-      // Reset map click location
-      setMapClickLocation(null);
-    } catch (error) {
-      console.error("Error adding property:", error);
-      throw error; // Re-throw to handle in the modal
-    }
-  };
-
-  const openAddModal = () => {
-    setIsAddModalOpen(true);
-  };
-
-  const closeAddModal = () => {
-    setIsAddModalOpen(false);
-    setMapClickLocation(null);
-  };
-
   if (isLoadingLocation) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -142,7 +105,7 @@ export function RealEstateApp() {
   }
 
   return (
-    <div className="relative w-full h-screen">
+    <div className="relative w-full h-[calc(100vh-var(--header-height))]">
       {true && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
           <div className="flex items-center gap-2">
@@ -154,7 +117,6 @@ export function RealEstateApp() {
         </div>
       )}
 
-      {/* Map - Zoom 17 shows ~100m radius around user */}
       <MapLibreMap
         center={[userLocation.latitude, userLocation.longitude]}
         zoom={17}
@@ -162,10 +124,6 @@ export function RealEstateApp() {
         onPropertyClick={handlePropertyClick}
       />
 
-      {/* Add Property Button */}
-      <FloatingAddButton onClick={openAddModal} />
-
-      {/* Property Information Panel */}
       {properties.length > 0 && (
         <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg max-w-sm">
           <h3 className="font-semibold text-gray-800 mb-2">
@@ -195,18 +153,9 @@ export function RealEstateApp() {
         }}
       />
 
-      {/* Add Property Modal */}
-      <AddPropertyModal
-        isOpen={isAddModalOpen}
-        onClose={closeAddModal}
-        onSubmit={handleAddProperty}
-        defaultLocation={
-          mapClickLocation ||
-          (userLocation
-            ? { lat: userLocation.latitude, lng: userLocation.longitude }
-            : undefined)
-        }
-      />
+      <AddPropertyModalForm className="fixed right-2 bottom-10 lg:right-10 z-10 size-12 group rounded-full ">
+        <PlusIcon className="group-hover:rotate-180 size-6 transition-transform duration-300" />
+      </AddPropertyModalForm>
     </div>
   );
 }
