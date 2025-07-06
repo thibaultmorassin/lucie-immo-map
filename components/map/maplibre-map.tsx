@@ -1,4 +1,6 @@
+import { Button } from "@/components/ui/button";
 import { Property } from "@/types";
+import { Calendar, Home, MapPin } from "lucide-react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
@@ -20,12 +22,33 @@ const userLocationMarkerSVG = `
 </svg>
 `;
 
+interface CadastreProperties {
+  commune?: string;
+  section?: string;
+  numero?: string;
+  contenance?: number;
+  nature_culture?: string;
+  code_insee?: string;
+  updated?: string;
+  created?: string;
+}
+
 interface MapProps {
   center: [number, number];
   zoom: number;
   properties: Property[];
   onPropertyClick: (property: Property) => void;
-  onMapClick?: (lat: number, lng: number) => void;
+  onMapClick?: (
+    lat: number,
+    lng: number,
+    cadastreData?: CadastreProperties
+  ) => void;
+}
+
+interface CadastrePopoverData {
+  lat: number;
+  lng: number;
+  properties: CadastreProperties;
 }
 
 export default function MapLibreMap({
@@ -33,11 +56,15 @@ export default function MapLibreMap({
   zoom,
   properties,
   onPropertyClick,
+  onMapClick,
 }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [mounted, setMounted] = useState(false);
   const userLocationMarker = useRef<maplibregl.Marker | null>(null);
+  const [cadastrePopover, setCadastrePopover] =
+    useState<CadastrePopoverData | null>(null);
+  const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
 
   // Initialize map
   useEffect(() => {
@@ -122,51 +149,38 @@ export default function MapLibreMap({
         const feature = e.features[0];
         const properties = feature.properties;
 
-        // Create popup with parcel information
-        new maplibregl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(
-            `
-            <div style="padding: 8px; min-width: 200px;">
-              <h4 style="font-weight: bold; font-size: 14px; margin-bottom: 8px;">Parcelle Cadastrale</h4>
-              <div style="font-size: 12px; line-height: 1.4;">
-                ${
-                  properties.commune
-                    ? `<p><strong>Commune:</strong> ${properties.commune}</p>`
-                    : ""
-                }
-                ${
-                  properties.section
-                    ? `<p><strong>Section:</strong> ${properties.section}</p>`
-                    : ""
-                }
-                ${
-                  properties.numero
-                    ? `<p><strong>Numéro:</strong> ${properties.numero}</p>`
-                    : ""
-                }
-                ${
-                  properties.contenance
-                    ? `<p><strong>Surface:</strong> ${Math.round(
-                        properties.contenance
-                      )} m²</p>`
-                    : ""
-                }
-                ${
-                  properties.nature_culture
-                    ? `<p><strong>Nature:</strong> ${properties.nature_culture}</p>`
-                    : ""
-                }
-                ${
-                  properties.code_insee
-                    ? `<p><strong>Code INSEE:</strong> ${properties.code_insee}</p>`
-                    : ""
-                }
-              </div>
-            </div>
-            `
-          )
-          .addTo(map.current!);
+        // Get mouse position for popover
+        const point = map.current?.project(e.lngLat);
+        if (point && mapContainer.current) {
+          const rect = mapContainer.current.getBoundingClientRect();
+          setPopoverPosition({
+            x: point.x + rect.left,
+            y: point.y + rect.top,
+          });
+        }
+
+        // Set cadastre popover data
+        setCadastrePopover({
+          lat: e.lngLat.lat,
+          lng: e.lngLat.lng,
+          properties,
+        });
+
+        // Prevent event from bubbling to map click
+        e.preventDefault();
+      }
+    });
+
+    // Add hover cursor for cadastre parcels
+    map.current.on("mouseenter", "cadastre-parcels", () => {
+      if (map.current) {
+        map.current.getCanvas().style.cursor = "pointer";
+      }
+    });
+
+    map.current.on("mouseleave", "cadastre-parcels", () => {
+      if (map.current) {
+        map.current.getCanvas().style.cursor = "";
       }
     });
 
@@ -175,14 +189,17 @@ export default function MapLibreMap({
 
   // Update map center when user location changes
   useEffect(() => {
-    if (!map.current || !mounted) return;
+    if (!map.current || !mounted) {
+      return;
+    }
 
     // Smoothly pan to new center
     map.current.easeTo({
-      center: [center[1], center[0]], // MapLibre uses [lng, lat] format
+      center: [center[1], center[0]],
       duration: 1000,
     });
-  }, [center, mounted]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
 
   // Add property markers
   useEffect(() => {
@@ -290,6 +307,26 @@ export default function MapLibreMap({
     };
   }, [center, mounted]);
 
+  const handleCreateProperty = () => {
+    if (cadastrePopover && onMapClick) {
+      onMapClick(
+        cadastrePopover.lat,
+        cadastrePopover.lng,
+        cadastrePopover.properties
+      );
+    }
+    setCadastrePopover(null);
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "Non disponible";
+    try {
+      return new Date(dateString).toLocaleDateString("fr-FR");
+    } catch {
+      return "Non disponible";
+    }
+  };
+
   if (typeof window === "undefined") {
     return null;
   }
@@ -297,6 +334,79 @@ export default function MapLibreMap({
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="w-full h-full" />
+
+      {/* Cadastre Popover */}
+      {cadastrePopover && (
+        <div
+          className="fixed z-50 bg-white rounded-lg shadow-lg border p-4 max-w-sm"
+          style={{
+            left: `${popoverPosition.x}px`,
+            top: `${popoverPosition.y}px`,
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          <button
+            onClick={() => setCadastrePopover(null)}
+            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+          >
+            ×
+          </button>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-red-500" />
+              <h4 className="font-semibold text-sm">Parcelle Cadastrale</h4>
+            </div>
+
+            <div className="space-y-2 text-sm">
+              {cadastrePopover.properties.updated && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3 w-3 text-gray-500" />
+                  <span className="text-gray-600">
+                    Mis à jour: {formatDate(cadastrePopover.properties.updated)}
+                  </span>
+                </div>
+              )}
+
+              {!cadastrePopover.properties.updated &&
+                cadastrePopover.properties.created && (
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-3 w-3 text-gray-500" />
+                    <span className="text-gray-600">
+                      Créé: {formatDate(cadastrePopover.properties.created)}
+                    </span>
+                  </div>
+                )}
+
+              {cadastrePopover.properties.contenance && (
+                <div className="flex items-center gap-2">
+                  <Home className="h-3 w-3 text-gray-500" />
+                  <span className="text-gray-600">
+                    Surface: {Math.round(cadastrePopover.properties.contenance)}{" "}
+                    m²
+                  </span>
+                </div>
+              )}
+
+              {cadastrePopover.properties.commune && (
+                <p className="text-gray-600">
+                  <strong>Commune:</strong> {cadastrePopover.properties.commune}
+                </p>
+              )}
+
+              {cadastrePopover.properties.section && (
+                <p className="text-gray-600">
+                  <strong>Section:</strong> {cadastrePopover.properties.section}
+                </p>
+              )}
+            </div>
+
+            <Button onClick={handleCreateProperty} className="w-full" size="sm">
+              Créer un bien ici
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

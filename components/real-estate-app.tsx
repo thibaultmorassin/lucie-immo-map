@@ -19,7 +19,8 @@ const DEFAULT_LOCATION = {
 };
 
 export function RealEstateApp() {
-  const [properties, setProperties] = useState<Property[]>([]);
+  const [properties] = useState<Property[]>([]);
+  // TODO: setProperties will be used to update the properties list when creating new ones
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(
     null
   );
@@ -73,6 +74,11 @@ export function RealEstateApp() {
     setIsPropertyModalOpen(true);
   };
 
+  const handleMapClick = (lat: number, lng: number) => {
+    setMapClickLocation({ lat, lng });
+    setIsAddModalOpen(true);
+  };
+
   if (isLoadingLocation) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -122,6 +128,7 @@ export function RealEstateApp() {
         zoom={17}
         properties={properties}
         onPropertyClick={handlePropertyClick}
+        onMapClick={handleMapClick}
       />
 
       {properties.length > 0 && (
@@ -153,7 +160,13 @@ export function RealEstateApp() {
         }}
       />
 
-      <AddPropertyModalForm className="fixed right-2 bottom-10 lg:right-10 z-10 size-12 group rounded-full ">
+      {/* Add Property Modal - from button click */}
+      <AddPropertyModalForm
+        isOpen={isAddModalOpen}
+        onOpenChange={setIsAddModalOpen}
+        className="fixed right-2 bottom-10 lg:right-10 z-10 size-12 group rounded-full"
+        presetCoordinates={mapClickLocation || undefined}
+      >
         <PlusIcon className="group-hover:rotate-180 size-6 transition-transform duration-300" />
       </AddPropertyModalForm>
     </div>
