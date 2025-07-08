@@ -153,7 +153,7 @@ const AddPropertyModalForm: React.FC<AddPropertyModalFormProps> = ({
       <ResponsiveDialogTrigger asChild>
         <Button {...props} />
       </ResponsiveDialogTrigger>
-      <ResponsiveDialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <ResponsiveDialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col lg:max-h-[80vh]">
         <ResponsiveDialogHeader>
           <ResponsiveDialogTitle>
             Création d&apos;un bien immobilier
@@ -171,7 +171,7 @@ const AddPropertyModalForm: React.FC<AddPropertyModalFormProps> = ({
             )}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
-        <div className="p-4 md:p-0">
+        <div className="p-4 md:p-px rounded-t-[10px] flex-1 overflow-y-auto">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
