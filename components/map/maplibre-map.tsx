@@ -1,6 +1,4 @@
-import { Button } from "@/components/ui/button";
 import { Property } from "@/types";
-import { Calendar, Home, MapPin } from "lucide-react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
@@ -12,11 +10,6 @@ const propertyMarkerSVG = `
   <circle cx="12.5" cy="12.5" r="5" fill="white"/>
   <circle cx="12.5" cy="12.5" r="3" fill="#10B981"/>
 </svg>
-`;
-
-// User location marker icon SVG
-const userLocationMarkerSVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-map-pin-icon lucide-map-pin"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
 `;
 
 interface CadastreProperties {
@@ -57,15 +50,14 @@ export default function MapLibreMap({
 }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const userLocationMarker = useRef<maplibregl.Marker | null>(null);
-  const [cadastrePopover, setCadastrePopover] =
-    useState<CadastrePopoverData | null>(null);
-  const [popoverPosition, setPopoverPosition] = useState({ x: 0, y: 0 });
+  const cadastrePopupRef = useRef<maplibregl.Popup | null>(null);
 
-  // Initialize map
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
-    if (!mapContainer.current || map.current) return;
+    if (!mapContainer.current || map.current) {
+      return;
+    }
 
     // Create map instance
     map.current = new maplibregl.Map({
@@ -140,28 +132,30 @@ export default function MapLibreMap({
     // Add navigation controls
     map.current.addControl(new maplibregl.NavigationControl(), "top-right");
 
+    const geolocateControl = new maplibregl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      fitBoundsOptions: { padding: 200 },
+      trackUserLocation: true,
+    });
+    map.current.addControl(geolocateControl, "top-right");
+
+    map.current.on("load", () => {
+      geolocateControl.trigger();
+    });
     // Add click events for cadastre parcels
     map.current.on("click", "cadastre-parcels", (e) => {
       if (e.features && e.features.length > 0) {
         const feature = e.features[0];
         const properties = feature.properties;
 
-        // Get mouse position for popover
-        const point = map.current?.project(e.lngLat);
-        if (point && mapContainer.current) {
-          const rect = mapContainer.current.getBoundingClientRect();
-          setPopoverPosition({
-            x: point.x + rect.left,
-            y: point.y + rect.top,
-          });
-        }
-
         // Set cadastre popover data
-        setCadastrePopover({
+        const cadastreData = {
           lat: e.lngLat.lat,
           lng: e.lngLat.lng,
           properties,
-        });
+        };
+        // Create and show MapLibre popup
+        showCadastrePopup(e.lngLat, cadastreData);
 
         // Prevent event from bubbling to map click
         e.preventDefault();
@@ -182,6 +176,7 @@ export default function MapLibreMap({
     });
 
     setMounted(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center, zoom]);
 
   // Update map center when user location changes
@@ -264,53 +259,161 @@ export default function MapLibreMap({
     });
   }, [properties, onPropertyClick, mounted]);
 
-  // Add user location marker
-  useEffect(() => {
-    if (!map.current || !mounted) return;
-
-    // Remove existing user location marker
-    if (userLocationMarker.current) {
-      userLocationMarker.current.remove();
-    }
-
-    // Create user location marker element
-    const userMarkerElement = document.createElement("div");
-    userMarkerElement.className = "user-location-marker";
-    userMarkerElement.innerHTML = userLocationMarkerSVG;
-    userMarkerElement.style.cursor = "pointer";
-    userMarkerElement.title = "Votre position";
-
-    // Create MapLibre marker for user location
-    userLocationMarker.current = new maplibregl.Marker(userMarkerElement)
-      .setLngLat([center[1], center[0]]) // Note: MapLibre uses [lng, lat] format
-      .addTo(map.current);
-
-    // Cleanup on unmount
-    return () => {
-      if (userLocationMarker.current) {
-        userLocationMarker.current.remove();
-        userLocationMarker.current = null;
-      }
-    };
-  }, [center, mounted]);
-
-  const handleCreateProperty = () => {
-    if (cadastrePopover && onMapClick) {
-      onMapClick(
-        cadastrePopover.lat,
-        cadastrePopover.lng,
-        cadastrePopover.properties
-      );
-    }
-    setCadastrePopover(null);
-  };
-
   const formatDate = (dateString: string) => {
     if (!dateString) return "Non disponible";
     try {
       return new Date(dateString).toLocaleDateString("fr-FR");
     } catch {
       return "Non disponible";
+    }
+  };
+
+  const showCadastrePopup = (
+    lngLat: maplibregl.LngLat,
+    data: CadastrePopoverData
+  ) => {
+    if (!map.current) return;
+
+    // Close existing popup
+    if (cadastrePopupRef.current) {
+      cadastrePopupRef.current.remove();
+    }
+
+    // Create popup HTML with exact same styles
+    const popupHTML = `
+      <div class="bg-background rounded-lg shadow-lg border p-4 max-w-sm" style="font-family: inherit;">
+        <button 
+          id="close-cadastre-popup" 
+          class="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+          style="position: absolute; top: 8px; right: 8px; background: none; border: none; font-size: 18px; cursor: pointer;"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x-icon lucide-circle-x"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+        </button>
+
+        <div class="space-y-3 w-48">
+          <div class="flex items-center gap-2" style="display: flex; align-items: center; gap: 8px;">
+            <svg class="h-4 w-4 text-red-500" style="width: 16px; height: 16px; color: #ef4444;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            <h4 class="font-semibold text-sm" style="font-weight: 600; font-size: 14px;">Parcelle Cadastrale</h4>
+          </div>
+
+          <div class="flex flex-col gap-1 text-sm text-muted-foreground">
+            ${
+              data.properties.updated
+                ? `
+              <div class="flex items-center gap-2">
+                <svg class="h-3 w-3" style="width: 12px; height: 12px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                <span>Mis à jour: ${formatDate(data.properties.updated)}</span>
+              </div>
+            `
+                : ""
+            }
+            
+            ${
+              !data.properties.updated && data.properties.created
+                ? `
+              <div class="flex items-center gap-2" style="display: flex; align-items: center; gap: 8px;">
+                <svg class="h-3 w-3" style="width: 12px; height: 12px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                <span>Créé: ${formatDate(data.properties.created)}</span>
+              </div>
+            `
+                : ""
+            }
+
+            ${
+              data.properties.contenance
+                ? `
+              <div class="flex items-center gap-2" style="display: flex; align-items: center; gap: 8px;">
+                <svg class="h-3 w-3" style="width: 12px; height: 12px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                  <polyline points="9,22 9,12 15,12 15,22"/>
+                </svg>
+                <span>Surface: ${Math.round(
+                  data.properties.contenance
+                )} m²</span>
+              </div>
+            `
+                : ""
+            }
+
+            ${
+              data.properties.commune
+                ? `
+              <p><strong>Commune:</strong> ${data.properties.commune}</p>
+            `
+                : ""
+            }
+
+            ${
+              data.properties.section
+                ? `
+              <p><strong>Section:</strong> ${data.properties.section}</p>
+            `
+                : ""
+            }
+          </div>
+
+          <button 
+            id="create-property-btn"
+            class="w-full relative h-10 px-4 py-2 [&_svg:not([class*='size-'])]:size-5 font-sans cursor-pointer inline-flex gap-2 items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all bg-slate-900 text-background shadow-[0_0_0_1px_var(--slate-900)] hover:bg-slate-800 hover:shadow-[0_0_0_1px_var(--slate-800)] disabled:shadow-border-disabled dark:bg-slate-50 dark:hover:bg-slate-100 dark:hover:shadow-[0_0_0_1px_var(--slate-100)]"
+          >
+            Créer un bien ici
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Create popup
+    cadastrePopupRef.current = new maplibregl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: [0, -10],
+    })
+      .setLngLat(lngLat)
+      .setHTML(popupHTML)
+      .addTo(map.current);
+
+    // Add event listeners after popup is added to DOM
+
+    const closeButton = document.getElementById("close-cadastre-popup");
+    const createButton = document.getElementById("create-property-btn");
+
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        if (cadastrePopupRef.current) {
+          cadastrePopupRef.current.remove();
+          cadastrePopupRef.current = null;
+        }
+      });
+    }
+
+    if (createButton) {
+      createButton.addEventListener("click", () => {
+        handleCreateProperty(data);
+      });
+    }
+  };
+
+  const handleCreateProperty = (data: CadastrePopoverData) => {
+    if (data && onMapClick) {
+      onMapClick(data.lat, data.lng, data.properties);
+    }
+    // Close the popup
+    if (cadastrePopupRef.current) {
+      cadastrePopupRef.current.remove();
+      cadastrePopupRef.current = null;
     }
   };
 
@@ -321,79 +424,18 @@ export default function MapLibreMap({
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="w-full h-full" />
-
-      {/* Cadastre Popover */}
-      {cadastrePopover && (
-        <div
-          className="fixed z-50 bg-background rounded-lg shadow-lg border p-4 max-w-sm"
-          style={{
-            left: `${popoverPosition.x}px`,
-            top: `${popoverPosition.y}px`,
-            transform: "translate(-50%, -100%)",
-          }}
-        >
-          <button
-            onClick={() => setCadastrePopover(null)}
-            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
-          >
-            ×
-          </button>
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-red-500" />
-              <h4 className="font-semibold text-sm">Parcelle Cadastrale</h4>
-            </div>
-
-            <div className="space-y-2 text-sm text-muted-foreground">
-              {cadastrePopover.properties.updated && (
-                <div className="flex items-center gap-2 ">
-                  <Calendar className="h-3 w-3 " />
-                  <span>
-                    Mis à jour: {formatDate(cadastrePopover.properties.updated)}
-                  </span>
-                </div>
-              )}
-
-              {!cadastrePopover.properties.updated &&
-                cadastrePopover.properties.created && (
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-3 w-3 " />
-                    <span>
-                      Créé: {formatDate(cadastrePopover.properties.created)}
-                    </span>
-                  </div>
-                )}
-
-              {cadastrePopover.properties.contenance && (
-                <div className="flex items-center gap-2">
-                  <Home className="h-3 w-3 " />
-                  <span>
-                    Surface: {Math.round(cadastrePopover.properties.contenance)}{" "}
-                    m²
-                  </span>
-                </div>
-              )}
-
-              {cadastrePopover.properties.commune && (
-                <p>
-                  <strong>Commune:</strong> {cadastrePopover.properties.commune}
-                </p>
-              )}
-
-              {cadastrePopover.properties.section && (
-                <p>
-                  <strong>Section:</strong> {cadastrePopover.properties.section}
-                </p>
-              )}
-            </div>
-
-            <Button onClick={handleCreateProperty} className="w-full" size="sm">
-              Créer un bien ici
-            </Button>
-          </div>
-        </div>
-      )}
+      <style>{`
+        .maplibregl-popup-content {
+          border: 0 !important;
+          padding: 0;
+          background-color: var(--background);
+          border-radius: var(--radius);
+          border: 1px solid var(--border);
+          --tw-shadow: 0 10px 15px -3px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 4px 6px -4px var(--tw-shadow-color, rgb(0 0 0 / 0.1));
+          box-shadow: var(--tw-inset-shadow), var(--tw-inset-ring-shadow), var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow);
+          --tw-shadow-color: rgb(0 0 0 / 0.1);
+        }
+      `}</style>
     </div>
   );
 }
