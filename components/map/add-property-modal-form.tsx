@@ -161,13 +161,13 @@ const AddPropertyModalForm: React.FC<AddPropertyModalFormProps> = ({
           <ResponsiveDialogDescription>
             Remplissez les informations pour créer un nouveau bien immobilier.
             {presetCoordinates && (
-              <div className="flex items-center gap-2 mt-2 text-emerald-600">
+              <span className="flex items-center gap-2 mt-2 text-emerald-600">
                 <MapPin className="h-4 w-4" />
                 <span className="text-sm">
                   Position: {presetCoordinates.lat.toFixed(4)},{" "}
                   {presetCoordinates.lng.toFixed(4)}
                 </span>
-              </div>
+              </span>
             )}
           </ResponsiveDialogDescription>
         </ResponsiveDialogHeader>
