@@ -69,7 +69,7 @@ const Button = ({
   const Comp = asChild ? Slot : "button";
 
   const iconArrowUpRightAnimationClassname =
-    "[&_svg.tabler-icon-arrow-up-right]:spring-bounce-60 [&_svg.tabler-icon-arrow-up-right]:spring-duration-300 [&_svg.tabler-icon-arrow-up-right]:hover:translate-x-[3px] [&_svg.tabler-icon-arrow-up-right]:hover:translate-y-[-3px]";
+    "[&_svg.lucide-arrow-up-right]:transition-all [&_svg.lucide-arrow-up-right]:duration-300 hover:[&_svg.lucide-arrow-up-right]:translate-x-[3px] hover:[&_svg.lucide-arrow-up-right]:translate-y-[-3px] hover:[&_svg.lucide-arrow-up-right]:scale-95";
 
   return (
     <Comp
