@@ -49,10 +49,54 @@ export default function MapLibreMap({
   onMapClick,
 }: MapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
+
   const map = useRef<maplibregl.Map | null>(null);
   const cadastrePopupRef = useRef<maplibregl.Popup | null>(null);
+  const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
 
   const [mounted, setMounted] = useState(false);
+
+  const clearParcelSelection = () => {
+    if (!map.current) {
+      return;
+    }
+    // If we have a specific parcel selected, try to clear it
+    if (selectedParcelId) {
+      try {
+        map.current.removeFeatureState({
+          source: "cadastre-dvf",
+          sourceLayer: "parcelles",
+          id: selectedParcelId,
+        });
+      } catch (e) {
+        console.warn("Could not clear previous selection:", e);
+      }
+
+      // Also try with numeric ID if stored as string
+      try {
+        const numericId = Number(selectedParcelId);
+        if (!isNaN(numericId)) {
+          map.current.removeFeatureState({
+            source: "cadastre-dvf",
+            sourceLayer: "parcelles",
+            id: numericId,
+          });
+        }
+      } catch (e) {
+        console.warn("Could not clear previous numeric selection:", e);
+      }
+    }
+
+    // As a fallback, clear all feature states from the layer
+    try {
+      map.current.removeFeatureState({
+        source: "cadastre-dvf",
+        sourceLayer: "parcelles",
+      });
+    } catch (e) {
+      console.warn("Could not clear all feature states:", e);
+    }
+  };
 
   useEffect(() => {
     if (!mapContainer.current || map.current) {
@@ -105,8 +149,18 @@ export default function MapLibreMap({
             minzoom: 16,
             maxzoom: 20, // Display up to zoom 20 using zoom 16 tiles
             paint: {
-              "fill-color": "#e74c3c",
-              "fill-opacity": 0.1,
+              "fill-color": [
+                "case",
+                ["boolean", ["feature-state", "selected"], false],
+                "#3b82f6", // Blue color for selected parcel
+                "#e74c3c", // Default red color
+              ],
+              "fill-opacity": [
+                "case",
+                ["boolean", ["feature-state", "selected"], false],
+                0.3, // Higher opacity for selected parcel
+                0.1, // Default opacity
+              ],
             },
           },
           // Cadastre parcel borders
@@ -118,8 +172,18 @@ export default function MapLibreMap({
             minzoom: 16,
             maxzoom: 20, // Display up to zoom 20 using zoom 16 tiles
             paint: {
-              "line-color": "#e74c3c",
-              "line-width": 1,
+              "line-color": [
+                "case",
+                ["boolean", ["feature-state", "selected"], false],
+                "#3b82f6", // Blue color for selected parcel
+                "#e74c3c", // Default red color
+              ],
+              "line-width": [
+                "case",
+                ["boolean", ["feature-state", "selected"], false],
+                2, // Thicker border for selected parcel
+                1, // Default width
+              ],
               "line-opacity": 0.8,
             },
           },
@@ -148,6 +212,27 @@ export default function MapLibreMap({
         const feature = e.features[0];
         const properties = feature.properties;
 
+        if (map.current) {
+          clearParcelSelection();
+        }
+
+        const featureId = feature.id;
+        if (featureId !== undefined && map.current) {
+          try {
+            map.current.setFeatureState(
+              {
+                source: "cadastre-dvf",
+                sourceLayer: "parcelles",
+                id: featureId,
+              },
+              { selected: true }
+            );
+            setSelectedParcelId(String(featureId));
+          } catch (e) {
+            console.warn("Could not set feature state:", e);
+          }
+        }
+
         // Set cadastre popover data
         const cadastreData = {
           lat: e.lngLat.lat,
@@ -172,6 +257,24 @@ export default function MapLibreMap({
     map.current.on("mouseleave", "cadastre-parcels", () => {
       if (map.current) {
         map.current.getCanvas().style.cursor = "";
+      }
+    });
+
+    // Clear selection when clicking elsewhere on the map
+    map.current.on("click", (e) => {
+      // Check if click was not on a cadastre parcel
+      const features = map.current?.queryRenderedFeatures(e.point, {
+        layers: ["cadastre-parcels"],
+      });
+
+      if (!features || features.length === 0) {
+        // Close any open popup
+        if (cadastrePopupRef.current) {
+          cadastrePopupRef.current.remove();
+          cadastrePopupRef.current = null;
+        }
+        // Clear parcel selection
+        clearParcelSelection();
       }
     });
 
@@ -396,6 +499,7 @@ export default function MapLibreMap({
           cadastrePopupRef.current.remove();
           cadastrePopupRef.current = null;
         }
+        clearParcelSelection();
       });
     }
 
@@ -415,6 +519,8 @@ export default function MapLibreMap({
       cadastrePopupRef.current.remove();
       cadastrePopupRef.current = null;
     }
+    // Clear parcel selection
+    clearParcelSelection();
   };
 
   if (typeof window === "undefined") {
