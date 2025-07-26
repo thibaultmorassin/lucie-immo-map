@@ -15,6 +15,7 @@ const propertyMarkerSVG = `
 interface CadastreProperties {
   commune?: string;
   section?: string;
+  prefixe?: string;
   numero?: string;
   contenance?: number;
   nature_culture?: string;
@@ -468,12 +469,21 @@ export default function MapLibreMap({
             }
           </div>
 
-          <button 
-            id="create-property-btn"
-            class="w-full relative h-10 px-4 py-2 [&_svg:not([class*='size-'])]:size-5 font-sans cursor-pointer inline-flex gap-2 items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all bg-slate-900 text-background shadow-[0_0_0_1px_var(--slate-900)] hover:bg-slate-800 hover:shadow-[0_0_0_1px_var(--slate-800)] disabled:shadow-border-disabled dark:bg-slate-50 dark:hover:bg-slate-100 dark:hover:shadow-[0_0_0_1px_var(--slate-100)]"
-          >
-            Créer un bien ici
-          </button>
+          <div class="flex flex-col gap-2"> 
+            <button 
+              id="create-property-btn"
+              class="inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5"
+            >
+              Créer un bien ici
+            </button>
+            <button 
+              id="fetch-dvf-btn"
+              class="inline-flex items-center border justify-center whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5"
+
+            >
+              Voir les transactions DVF
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -492,6 +502,7 @@ export default function MapLibreMap({
 
     const closeButton = document.getElementById("close-cadastre-popup");
     const createButton = document.getElementById("create-property-btn");
+    const dvfButton = document.getElementById("fetch-dvf-btn");
 
     if (closeButton) {
       closeButton.addEventListener("click", () => {
@@ -508,6 +519,13 @@ export default function MapLibreMap({
         handleCreateProperty(data);
       });
     }
+
+    if (dvfButton) {
+      dvfButton.addEventListener("click", () => {
+        console.log(data);
+        handleFetchDVF(data.properties);
+      });
+    }
   };
 
   const handleCreateProperty = (data: CadastrePopoverData) => {
@@ -521,6 +539,29 @@ export default function MapLibreMap({
     }
     // Clear parcel selection
     clearParcelSelection();
+  };
+
+  const handleFetchDVF = async (cadastre: CadastreProperties) => {
+    if (!cadastre.commune || !cadastre.prefixe || !cadastre.section) {
+      console.log("Informations cadastrales incomplètes.");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `https://dvf-api.data.gouv.fr/mutations/${cadastre.commune}/${cadastre.prefixe}${cadastre.section}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la récupération DVF");
+      }
+
+      const result = await response.json();
+      console.log("Résultats DVF pour la parcelle :", result);
+    } catch (error) {
+      console.error("Erreur DVF :", error);
+      alert("Erreur lors de la récupération des données DVF.");
+    }
   };
 
   if (typeof window === "undefined") {
