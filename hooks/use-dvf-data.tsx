@@ -1,19 +1,29 @@
 import { CadastreProperties, DVFMutation } from "@/types";
-import { useCallback, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export function useDVFData() {
-  const [dvfHistory, setDvfHistory] = useState<Map<string, DVFMutation[]>>(
-    new Map()
-  );
+interface DVFDataResponse {
+  data: DVFMutation[];
+}
 
-  const fetchDVFData = useCallback(async (cadastre: CadastreProperties) => {
-    if (!cadastre.commune || !cadastre.prefixe || !cadastre.section) {
-      console.log("Informations cadastrales incomplètes.");
-      return;
-    }
+export function useDVFData(cadastre?: CadastreProperties) {
+  const queryKey =
+    cadastre?.commune && cadastre?.prefixe && cadastre?.section
+      ? `${cadastre.commune}/${cadastre.prefixe}${cadastre.section}`
+      : null;
 
-    try {
+  const {
+    data: dvfData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ["dvf-data", queryKey],
+    queryFn: async (): Promise<DVFDataResponse> => {
+      if (!cadastre?.commune || !cadastre?.prefixe || !cadastre?.section) {
+        throw new Error("Informations cadastrales incomplètes.");
+      }
+
       const response = await fetch(
         `https://dvf-api.data.gouv.fr/mutations/${cadastre.commune}/${cadastre.prefixe}${cadastre.section}`
       );
@@ -22,32 +32,36 @@ export function useDVFData() {
         throw new Error("Erreur lors de la récupération DVF");
       }
 
-      const result = (await response.json()) as { data: DVFMutation[] };
+      return response.json();
+    },
+    enabled: !!queryKey,
+    retry: 1,
+    // 6 months cache is already configured globally in QueryClient
+  });
 
-      const newDvfHistory = new Map<string, DVFMutation[]>();
+  // Handle errors with toast
+  if (error) {
+    console.error("Erreur DVF :", error);
+    toast.error("Erreur lors de la récupération des données DVF.");
+  }
 
-      result.data.forEach((mutation) => {
-        const mutationId = mutation.id_parcelle;
-        const existingMutations = newDvfHistory.get(mutationId) || [];
-        newDvfHistory.set(mutationId, [...existingMutations, mutation]);
-      });
+  // Process the data to group by parcel ID like the original implementation
+  const dvfHistory = new Map<string, DVFMutation[]>();
 
-      setDvfHistory((prev) => {
-        const updatedMap = new Map(prev);
-        newDvfHistory.forEach((mutations, parcelId) => {
-          const existingMutations = updatedMap.get(parcelId) || [];
-          updatedMap.set(parcelId, [...existingMutations, ...mutations]);
-        });
-        return updatedMap;
-      });
-    } catch (error) {
-      console.error("Erreur DVF :", error);
-      toast.error("Erreur lors de la récupération des données DVF.");
-    }
-  }, []);
+  if (dvfData?.data) {
+    dvfData.data.forEach((mutation) => {
+      const mutationId = mutation.id_parcelle;
+      const existingMutations = dvfHistory.get(mutationId) || [];
+      dvfHistory.set(mutationId, [...existingMutations, mutation]);
+    });
+  }
 
   return {
     dvfHistory,
-    fetchDVFData,
+    isLoading,
+    error,
+    refetch,
+    // Keep compatibility with existing fetchDVFData function signature
+    fetchDVFData: refetch,
   };
 }

@@ -1,7 +1,6 @@
 import { CadastreProperties, Property } from "@/types";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCadastreInteraction } from "@/hooks/use-cadastre-interaction";
-import { useDVFData } from "@/hooks/use-dvf-data";
 import { useMapInstance } from "@/hooks/use-map-instance";
 import { usePropertyMarkers } from "@/hooks/use-property-markers";
 
@@ -27,16 +26,12 @@ export default function MapLibreMap({
   // Initialize map instance and basic setup
   const { mapContainer, map, mounted } = useMapInstance({ center, zoom });
 
-  // Handle DVF data fetching and management
-  const { dvfHistory, fetchDVFData } = useDVFData();
-
   // Handle cadastre interactions (parcels, popup, selection)
-  useCadastreInteraction({
+  // Note: DVF data fetching is now handled inside the cadastre interaction hook
+  const { MutationsDialog } = useCadastreInteraction({
     map,
     mounted,
     onMapClick,
-    onFetchDVF: fetchDVFData,
-    dvfHistory,
   });
 
   // Handle property markers rendering
@@ -54,6 +49,7 @@ export default function MapLibreMap({
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="w-full h-full" />
+      {MutationsDialog}
       <style>{`
         .maplibregl-popup-content {
           border: 0 !important;

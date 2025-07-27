@@ -1,7 +1,11 @@
-import { CadastrePopoverData, CadastreProperties, DVFMutation } from "@/types";
+"use client";
+
+import { DVFMutationsDialog } from "@/components/map/dvf-mutations-dialog";
+import { CadastrePopoverData, CadastreProperties } from "@/types";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useDVFData } from "./use-dvf-data";
 
 interface UseCadastreInteractionProps {
   map: maplibregl.Map | null;
@@ -11,19 +15,39 @@ interface UseCadastreInteractionProps {
     lng: number,
     cadastreData?: CadastreProperties
   ) => void;
-  onFetchDVF: (cadastre: CadastreProperties) => void;
-  dvfHistory: Map<string, DVFMutation[]>;
 }
+
+// Helper functions for formatting
+const formatPrice = (price: number) => {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(price);
+};
+
+const formatDateShort = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString("fr-FR", {
+    year: "numeric",
+    month: "short",
+  });
+};
 
 export function useCadastreInteraction({
   map,
   mounted,
   onMapClick,
-  onFetchDVF,
-  dvfHistory,
 }: UseCadastreInteractionProps) {
   const cadastrePopupRef = useRef<maplibregl.Popup | null>(null);
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
+  const [selectedCadastre, setSelectedCadastre] =
+    useState<CadastreProperties | null>(null);
+  const [showMutationsDialog, setShowMutationsDialog] = useState(false);
+
+  // Use the new DVF data hook with React Query
+  const { dvfHistory, isLoading: isDVFLoading } = useDVFData(
+    selectedCadastre || undefined
+  );
 
   const clearParcelSelection = useCallback(() => {
     if (!map) {
@@ -218,7 +242,6 @@ export function useCadastreInteraction({
       // Add event listeners after popup is added to DOM
       const closeButton = document.getElementById("close-cadastre-popup");
       const createButton = document.getElementById("create-property-btn");
-      onFetchDVF(data.properties);
 
       if (closeButton) {
         closeButton.addEventListener("click", () => {
@@ -236,7 +259,8 @@ export function useCadastreInteraction({
         });
       }
     },
-    [map, formatDate, onFetchDVF, clearParcelSelection, handleCreateProperty]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [map]
   );
 
   // Update DVF history in popup
@@ -250,18 +274,70 @@ export function useCadastreInteraction({
       return;
     }
 
-    const mutations = dvfHistory.get(selectedParcelId);
-
-    if (!mutations) {
-      dvfHistoryElement.innerHTML = `<code class="text-xs text-muted-foreground">Aucune transaction récente</code>`;
+    if (isDVFLoading) {
+      dvfHistoryElement.innerHTML = `<div class="text-xs text-muted-foreground">Chargement des données DVF...</div>`;
       return;
     }
 
-    mutations.forEach((mutation) => {
-      console.log(mutation);
-      dvfHistoryElement.innerHTML += `<li>${mutation.date_mutation}</li>`;
+    const mutations = dvfHistory.get(selectedParcelId);
+
+    if (!mutations || mutations.length === 0) {
+      dvfHistoryElement.innerHTML = `<h5 class="font-medium text-sm">Aucune transaction récente</h5>`;
+      return;
+    }
+
+    // Sort mutations by date (most recent first)
+    const sortedMutations = [...mutations].sort(
+      (a, b) =>
+        new Date(b.date_mutation).getTime() -
+        new Date(a.date_mutation).getTime()
+    );
+
+    // Show up to 3 most recent transactions
+    const recentMutations = sortedMutations.slice(0, 1);
+
+    let historyHTML = `<div class="space-y-2">`;
+    historyHTML += `<h5 class="font-medium text-sm">Transactions récentes:</h5>`;
+
+    recentMutations.forEach((mutation) => {
+      historyHTML += `
+        <div class="bg-muted/50 rounded p-2 text-xs">
+          <div class="flex justify-between items-center">
+            <span class="font-medium">${formatPrice(
+              mutation.valeur_fonciere
+            )}</span>
+            <span class="text-muted-foreground">${formatDateShort(
+              mutation.date_mutation
+            )}</span>
+          </div>
+          <div class="text-muted-foreground mt-1">${mutation.type_local}</div>
+        </div>
+      `;
     });
-  }, [selectedParcelId, dvfHistory]);
+
+    // Always show the "voir plus" button to open the modal
+    historyHTML += `
+      <button 
+        id="see-more-dvf-btn"
+        class="w-full text-xs text-primary hover:text-primary/80 underline mt-2"
+      >
+        Voir ${mutations.length > 1 ? "toutes les" : "la"} ${
+      mutations.length
+    } transaction${mutations.length > 1 ? "s" : ""}
+      </button>
+    `;
+
+    historyHTML += `</div>`;
+    dvfHistoryElement.innerHTML = historyHTML;
+
+    // Add event listener for "see more" button
+    const seeMoreButton = document.getElementById("see-more-dvf-btn");
+    if (seeMoreButton) {
+      seeMoreButton.addEventListener("click", () => {
+        setShowMutationsDialog(true);
+      });
+    }
+  }, [selectedParcelId, dvfHistory, isDVFLoading]);
 
   // Set up map event listeners
   useEffect(() => {
@@ -290,6 +366,7 @@ export function useCadastreInteraction({
               { selected: true }
             );
             setSelectedParcelId(String(properties.id));
+            setSelectedCadastre(properties);
           } catch (e) {
             console.warn("Could not set feature state:", e);
           }
@@ -336,8 +413,25 @@ export function useCadastreInteraction({
     };
   }, [map, mounted, clearParcelSelection, showCadastrePopup]);
 
+  // Get mutations for the selected parcel for the dialog
+  const selectedMutations = selectedParcelId
+    ? dvfHistory.get(selectedParcelId) || []
+    : [];
+
   return {
     selectedParcelId,
     clearParcelSelection,
+    showMutationsDialog,
+    setShowMutationsDialog,
+    selectedMutations,
+    // Return the dialog component
+    MutationsDialog: selectedParcelId ? (
+      <DVFMutationsDialog
+        open={showMutationsDialog}
+        onOpenChange={setShowMutationsDialog}
+        mutations={selectedMutations}
+        parcelId={selectedParcelId}
+      />
+    ) : null,
   };
 }
