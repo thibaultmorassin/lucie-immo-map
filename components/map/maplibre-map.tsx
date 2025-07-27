@@ -1,7 +1,8 @@
-import { Property } from "@/types";
+import { CadastreProperties, DVFMutation, Property } from "@/types";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 // Custom property marker icon SVG
 const propertyMarkerSVG = `
@@ -11,18 +12,6 @@ const propertyMarkerSVG = `
   <circle cx="12.5" cy="12.5" r="3" fill="#10B981"/>
 </svg>
 `;
-
-interface CadastreProperties {
-  commune?: string;
-  section?: string;
-  prefixe?: string;
-  numero?: string;
-  contenance?: number;
-  nature_culture?: string;
-  code_insee?: string;
-  updated?: string;
-  created?: string;
-}
 
 interface MapProps {
   center: [number, number];
@@ -56,6 +45,9 @@ export default function MapLibreMap({
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
 
   const [mounted, setMounted] = useState(false);
+  const [dvfHistory, setDvfHistory] = useState<Map<string, DVFMutation[]>>(
+    new Map()
+  );
 
   const clearParcelSelection = () => {
     if (!map.current) {
@@ -207,6 +199,7 @@ export default function MapLibreMap({
     map.current.on("load", () => {
       geolocateControl.trigger();
     });
+
     // Add click events for cadastre parcels
     map.current.on("click", "cadastre-parcels", (e) => {
       if (e.features && e.features.length > 0) {
@@ -218,6 +211,7 @@ export default function MapLibreMap({
         }
 
         const featureId = feature.id;
+
         if (featureId !== undefined && map.current) {
           try {
             map.current.setFeatureState(
@@ -228,7 +222,7 @@ export default function MapLibreMap({
               },
               { selected: true }
             );
-            setSelectedParcelId(String(featureId));
+            setSelectedParcelId(String(properties.id));
           } catch (e) {
             console.warn("Could not set feature state:", e);
           }
@@ -245,19 +239,6 @@ export default function MapLibreMap({
 
         // Prevent event from bubbling to map click
         e.preventDefault();
-      }
-    });
-
-    // Add hover cursor for cadastre parcels
-    map.current.on("mouseenter", "cadastre-parcels", () => {
-      if (map.current) {
-        map.current.getCanvas().style.cursor = "pointer";
-      }
-    });
-
-    map.current.on("mouseleave", "cadastre-parcels", () => {
-      if (map.current) {
-        map.current.getCanvas().style.cursor = "";
       }
     });
 
@@ -400,7 +381,9 @@ export default function MapLibreMap({
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
               <circle cx="12" cy="10" r="3"/>
             </svg>
-            <h4 class="font-semibold text-sm" style="font-weight: 600; font-size: 14px;">Parcelle Cadastrale</h4>
+            <h4 class="font-semibold text-sm" style="font-weight: 600; font-size: 14px;">Parcelle ${
+              data.properties.id
+            }</h4>
           </div>
 
           <div class="flex flex-col gap-1 text-sm text-muted-foreground">
@@ -476,13 +459,8 @@ export default function MapLibreMap({
             >
               Créer un bien ici
             </button>
-            <button 
-              id="fetch-dvf-btn"
-              class="inline-flex items-center border justify-center whitespace-nowrap text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5"
-
-            >
-              Voir les transactions DVF
-            </button>
+            <div id="dvf-history">
+            </div>
           </div>
         </div>
       </div>
@@ -502,7 +480,7 @@ export default function MapLibreMap({
 
     const closeButton = document.getElementById("close-cadastre-popup");
     const createButton = document.getElementById("create-property-btn");
-    const dvfButton = document.getElementById("fetch-dvf-btn");
+    handleFetchDVF(data.properties);
 
     if (closeButton) {
       closeButton.addEventListener("click", () => {
@@ -519,14 +497,32 @@ export default function MapLibreMap({
         handleCreateProperty(data);
       });
     }
-
-    if (dvfButton) {
-      dvfButton.addEventListener("click", () => {
-        console.log(data);
-        handleFetchDVF(data.properties);
-      });
-    }
   };
+
+  useEffect(() => {
+    if (!selectedParcelId) {
+      return;
+    }
+
+    const dvfHistoryElement = document.getElementById("dvf-history");
+    if (!dvfHistoryElement) {
+      return;
+    }
+
+    const mutations = dvfHistory.get(selectedParcelId);
+
+    if (!mutations) {
+      dvfHistoryElement.innerHTML = `<code class="text-xs text-muted-foreground">Aucune transaction récente</code>`;
+      return;
+    }
+
+    mutations.forEach((mutation) => {
+      console.log(mutation);
+      dvfHistoryElement.innerHTML += `<li>${mutation.date_mutation}</li>`;
+    });
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedParcelId]);
 
   const handleCreateProperty = (data: CadastrePopoverData) => {
     if (data && onMapClick) {
@@ -556,11 +552,27 @@ export default function MapLibreMap({
         throw new Error("Erreur lors de la récupération DVF");
       }
 
-      const result = await response.json();
-      console.log("Résultats DVF pour la parcelle :", result);
+      const result = (await response.json()) as { data: DVFMutation[] };
+
+      const newDvfHistory = new Map<string, DVFMutation[]>();
+
+      result.data.forEach((mutation) => {
+        const mutationId = mutation.id_parcelle;
+        const existingMutations = newDvfHistory.get(mutationId) || [];
+        newDvfHistory.set(mutationId, [...existingMutations, mutation]);
+      });
+
+      setDvfHistory((prev) => {
+        const updatedMap = new Map(prev);
+        newDvfHistory.forEach((mutations, parcelId) => {
+          const existingMutations = updatedMap.get(parcelId) || [];
+          updatedMap.set(parcelId, [...existingMutations, ...mutations]);
+        });
+        return updatedMap;
+      });
     } catch (error) {
       console.error("Erreur DVF :", error);
-      alert("Erreur lors de la récupération des données DVF.");
+      toast.error("Erreur lors de la récupération des données DVF.");
     }
   };
 
