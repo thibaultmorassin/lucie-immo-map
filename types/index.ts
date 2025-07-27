@@ -16,7 +16,7 @@ export interface Property {
   updated_at: string;
 }
 
-export type DVFMutation = {
+type DVFMutation = {
   id_mutation: string;
   date_mutation: string;
   numero_disposition: number;
@@ -60,7 +60,7 @@ export type DVFMutation = {
   section_prefixe: string;
 };
 
-export type CadastreProperties = {
+type CadastreProperties = {
   id?: string;
   commune?: string;
   section?: string;
@@ -72,3 +72,11 @@ export type CadastreProperties = {
   updated?: string;
   created?: string;
 };
+
+type CadastrePopoverData = {
+  lat: number;
+  lng: number;
+  properties: CadastreProperties;
+};
+
+export type { CadastrePopoverData, CadastreProperties, DVFMutation };
