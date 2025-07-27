@@ -28,7 +28,7 @@ export default function MapLibreMap({
 
   // Handle cadastre interactions (parcels, popup, selection)
   // Note: DVF data fetching is now handled inside the cadastre interaction hook
-  const { MutationsDialog } = useCadastreInteraction({
+  const { MutationsDialog, isLoadingDVFData } = useCadastreInteraction({
     map,
     mounted,
     onMapClick,
@@ -50,6 +50,12 @@ export default function MapLibreMap({
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="w-full h-full" />
       {MutationsDialog}
+      {isLoadingDVFData && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-medium shadow-lg flex items-center gap-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent"></div>
+          Chargement des données DVF...
+        </div>
+      )}
       <style>{`
         .maplibregl-popup-content {
           border: 0 !important;

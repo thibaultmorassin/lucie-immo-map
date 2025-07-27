@@ -50,6 +50,7 @@ export function useCadastreInteraction({
   // Track DVF data for all visible parcels
   const dvfDataByParcelRef = useRef<Map<string, boolean>>(new Map());
   const isLoadingDVFDataRef = useRef<boolean>(false);
+  const [isLoadingDVFData, setIsLoadingDVFData] = useState<boolean>(false);
 
   // Use the new DVF data hook with React Query
   const { dvfHistory, isLoading: isDVFLoading } = useDVFData(
@@ -63,6 +64,7 @@ export function useCadastreInteraction({
     }
 
     isLoadingDVFDataRef.current = true;
+    setIsLoadingDVFData(true);
 
     try {
       // Query visible parcels
@@ -72,6 +74,7 @@ export function useCadastreInteraction({
 
       if (features.length === 0) {
         isLoadingDVFDataRef.current = false;
+        setIsLoadingDVFData(false);
         return;
       }
 
@@ -181,6 +184,7 @@ export function useCadastreInteraction({
       console.warn("Error loading DVF data for bounds:", error);
     } finally {
       isLoadingDVFDataRef.current = false;
+      setIsLoadingDVFData(false);
     }
   }, [map, mounted]);
 
@@ -597,6 +601,7 @@ export function useCadastreInteraction({
     showMutationsDialog,
     setShowMutationsDialog,
     selectedMutations,
+    isLoadingDVFData,
     // Return the dialog component
     MutationsDialog: selectedParcelId ? (
       <DVFMutationsDialog
