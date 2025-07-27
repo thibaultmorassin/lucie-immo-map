@@ -66,13 +66,17 @@ export function useMapInstance({ center, zoom }: UseMapInstanceProps) {
                 "case",
                 ["boolean", ["feature-state", "selected"], false],
                 "#3b82f6", // Blue color for selected parcel
-                "#e74c3c", // Default red color
+                ["boolean", ["feature-state", "hasDVF"], false],
+                "#e74c3c", // Red color for parcels with DVF data
+                "transparent", // Transparent for parcels without DVF data
               ],
               "fill-opacity": [
                 "case",
                 ["boolean", ["feature-state", "selected"], false],
                 0.3, // Higher opacity for selected parcel
-                0.1, // Default opacity
+                ["boolean", ["feature-state", "hasDVF"], false],
+                0.2, // Medium opacity for parcels with DVF data
+                0.0, // No opacity for transparent parcels
               ],
             },
           },
@@ -89,7 +93,9 @@ export function useMapInstance({ center, zoom }: UseMapInstanceProps) {
                 "case",
                 ["boolean", ["feature-state", "selected"], false],
                 "#3b82f6", // Blue color for selected parcel
-                "#e74c3c", // Default red color
+                ["boolean", ["feature-state", "hasDVF"], false],
+                "#e74c3c", // Red color for parcels with DVF data
+                "#cccccc", // Light gray for parcels without DVF data
               ],
               "line-width": [
                 "case",
@@ -97,7 +103,14 @@ export function useMapInstance({ center, zoom }: UseMapInstanceProps) {
                 2, // Thicker border for selected parcel
                 1, // Default width
               ],
-              "line-opacity": 0.8,
+              "line-opacity": [
+                "case",
+                ["boolean", ["feature-state", "selected"], false],
+                0.8, // Higher opacity for selected parcel
+                ["boolean", ["feature-state", "hasDVF"], false],
+                0.6, // Medium opacity for parcels with DVF data
+                0.3, // Lower opacity for parcels without DVF data
+              ],
             },
           },
         ],

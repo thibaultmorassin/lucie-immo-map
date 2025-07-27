@@ -40,56 +40,215 @@ export function useCadastreInteraction({
 }: UseCadastreInteractionProps) {
   const cadastrePopupRef = useRef<maplibregl.Popup | null>(null);
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
+  const [selectedFeatureId, setSelectedFeatureId] = useState<
+    string | number | null
+  >(null);
   const [selectedCadastre, setSelectedCadastre] =
     useState<CadastreProperties | null>(null);
   const [showMutationsDialog, setShowMutationsDialog] = useState(false);
+
+  // Track DVF data for all visible parcels
+  const dvfDataByParcelRef = useRef<Map<string, boolean>>(new Map());
+  const isLoadingDVFDataRef = useRef<boolean>(false);
 
   // Use the new DVF data hook with React Query
   const { dvfHistory, isLoading: isDVFLoading } = useDVFData(
     selectedCadastre || undefined
   );
 
+  // Function to load DVF data for the current map bounds
+  const loadDVFDataForBounds = useCallback(async () => {
+    if (!map || !mounted || isLoadingDVFDataRef.current) {
+      return;
+    }
+
+    isLoadingDVFDataRef.current = true;
+
+    try {
+      // Query visible parcels
+      const features = map.queryRenderedFeatures(undefined, {
+        layers: ["cadastre-parcels"],
+      });
+
+      if (features.length === 0) {
+        isLoadingDVFDataRef.current = false;
+        return;
+      }
+
+      // Group parcels by section (commune/prefixe/section)
+      const sectionGroups = new Map<
+        string,
+        {
+          features: maplibregl.MapGeoJSONFeature[];
+          cadastreProps: CadastreProperties;
+        }
+      >();
+
+      features.forEach((feature) => {
+        const props = feature.properties;
+        if (props?.commune && props?.prefixe && props?.section) {
+          const sectionKey = `${props.commune}/${props.prefixe}${props.section}`;
+          if (!sectionGroups.has(sectionKey)) {
+            sectionGroups.set(sectionKey, {
+              features: [],
+              cadastreProps: props as CadastreProperties,
+            });
+          }
+          sectionGroups.get(sectionKey)!.features.push(feature);
+        }
+      });
+
+      // Load DVF data for each section
+      const dvfPromises = Array.from(sectionGroups.entries()).map(
+        async ([sectionKey, { features, cadastreProps }]) => {
+          try {
+            const response = await fetch(
+              `https://dvf-api.data.gouv.fr/mutations/${cadastreProps.commune}/${cadastreProps.prefixe}${cadastreProps.section}`
+            );
+
+            if (!response.ok) {
+              // Mark all parcels in this section as having no DVF data
+              features.forEach((feature) => {
+                if (feature.properties?.id) {
+                  dvfDataByParcelRef.current.set(feature.properties.id, false);
+                }
+              });
+              return;
+            }
+
+            const data = await response.json();
+            const dvfParcelIds = new Set(
+              data.data?.map(
+                (mutation: { id_parcelle: string }) => mutation.id_parcelle
+              ) || []
+            );
+
+            // Update feature states for all parcels in this section
+            features.forEach((feature) => {
+              const parcelId = feature.properties?.id;
+              if (parcelId) {
+                const hasDVF = dvfParcelIds.has(parcelId);
+                dvfDataByParcelRef.current.set(parcelId, hasDVF);
+
+                // Update MapLibre feature state
+                try {
+                  map.setFeatureState(
+                    {
+                      source: "cadastre-dvf",
+                      sourceLayer: "parcelles",
+                      id: feature.id,
+                    },
+                    { hasDVF }
+                  );
+                } catch {
+                  // Try with feature.properties.id if feature.id fails
+                  try {
+                    map.setFeatureState(
+                      {
+                        source: "cadastre-dvf",
+                        sourceLayer: "parcelles",
+                        id: parcelId,
+                      },
+                      { hasDVF }
+                    );
+                  } catch (error) {
+                    console.warn(
+                      "Could not set feature state for parcel:",
+                      parcelId,
+                      error
+                    );
+                  }
+                }
+              }
+            });
+          } catch (error) {
+            console.warn(
+              `Error loading DVF data for section ${sectionKey}:`,
+              error
+            );
+            // Mark all parcels in this section as having no DVF data
+            features.forEach((feature) => {
+              if (feature.properties?.id) {
+                dvfDataByParcelRef.current.set(feature.properties.id, false);
+              }
+            });
+          }
+        }
+      );
+
+      await Promise.all(dvfPromises);
+    } catch (error) {
+      console.warn("Error loading DVF data for bounds:", error);
+    } finally {
+      isLoadingDVFDataRef.current = false;
+    }
+  }, [map, mounted]);
+
+  // Load DVF data when map moves or zooms (with debouncing)
+  useEffect(() => {
+    if (!map || !mounted) {
+      return;
+    }
+
+    let timeoutId: NodeJS.Timeout;
+
+    const handleMapUpdate = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        loadDVFDataForBounds();
+      }, 1000);
+    };
+
+    map.on("moveend", handleMapUpdate);
+    map.on("zoomend", handleMapUpdate);
+
+    // Initial load
+    handleMapUpdate();
+
+    return () => {
+      clearTimeout(timeoutId);
+      map.off("moveend", handleMapUpdate);
+      map.off("zoomend", handleMapUpdate);
+    };
+  }, [map, mounted, loadDVFDataForBounds]);
+
   const clearParcelSelection = useCallback(() => {
     if (!map) {
       return;
     }
-    // If we have a specific parcel selected, try to clear it
-    if (selectedParcelId) {
+
+    // Clear the selected feature using the MapLibre feature ID
+    if (selectedFeatureId !== null) {
       try {
+        // Get the current DVF state for this parcel
+        const hasDVF = selectedParcelId
+          ? dvfDataByParcelRef.current.get(selectedParcelId) || false
+          : false;
+
         map.removeFeatureState({
           source: "cadastre-dvf",
           sourceLayer: "parcelles",
-          id: selectedParcelId,
+          id: selectedFeatureId,
         });
-      } catch (e) {
-        console.warn("Could not clear previous selection:", e);
-      }
 
-      // Also try with numeric ID if stored as string
-      try {
-        const numericId = Number(selectedParcelId);
-        if (!isNaN(numericId)) {
-          map.removeFeatureState({
+        // Restore DVF state without selection
+        map.setFeatureState(
+          {
             source: "cadastre-dvf",
             sourceLayer: "parcelles",
-            id: numericId,
-          });
-        }
+            id: selectedFeatureId,
+          },
+          { hasDVF }
+        );
       } catch (e) {
-        console.warn("Could not clear previous numeric selection:", e);
+        console.warn("Could not clear feature selection:", e);
       }
     }
 
-    // As a fallback, clear all feature states from the layer
-    try {
-      map.removeFeatureState({
-        source: "cadastre-dvf",
-        sourceLayer: "parcelles",
-      });
-    } catch (e) {
-      console.warn("Could not clear all feature states:", e);
-    }
-  }, [map, selectedParcelId]);
+    setSelectedParcelId(null);
+    setSelectedFeatureId(null);
+    setSelectedCadastre(null);
+  }, [map, selectedFeatureId, selectedParcelId]);
 
   const formatDate = useCallback((dateString: string) => {
     if (!dateString) return "Non disponible";
@@ -263,9 +422,9 @@ export function useCadastreInteraction({
     [map]
   );
 
-  // Update DVF history in popup
+  // Update DVF history in popup when data is loaded
   useEffect(() => {
-    if (!selectedParcelId) {
+    if (!selectedParcelId || !selectedCadastre) {
       return;
     }
 
@@ -337,7 +496,7 @@ export function useCadastreInteraction({
         setShowMutationsDialog(true);
       });
     }
-  }, [selectedParcelId, dvfHistory, isDVFLoading]);
+  }, [selectedParcelId, selectedCadastre, dvfHistory, isDVFLoading]);
 
   // Set up map event listeners
   useEffect(() => {
@@ -349,6 +508,7 @@ export function useCadastreInteraction({
         const feature = e.features[0];
         const properties = feature.properties;
 
+        // Clear previous selection
         if (map) {
           clearParcelSelection();
         }
@@ -357,16 +517,29 @@ export function useCadastreInteraction({
 
         if (featureId !== undefined && map) {
           try {
+            // Set the new selection
+            setSelectedParcelId(String(properties.id));
+            setSelectedFeatureId(featureId);
+            setSelectedCadastre(properties);
+
+            // Update feature state for selection
+            const parcelId = properties.id;
+            const hasDVF =
+              parcelId && dvfDataByParcelRef.current.has(parcelId)
+                ? dvfDataByParcelRef.current.get(parcelId)
+                : false;
+
             map.setFeatureState(
               {
                 source: "cadastre-dvf",
                 sourceLayer: "parcelles",
                 id: featureId,
               },
-              { selected: true }
+              {
+                selected: true,
+                hasDVF: hasDVF,
+              }
             );
-            setSelectedParcelId(String(properties.id));
-            setSelectedCadastre(properties);
           } catch (e) {
             console.warn("Could not set feature state:", e);
           }
